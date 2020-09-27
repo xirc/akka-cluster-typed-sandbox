@@ -4,7 +4,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import serialization.CborSerializable
 
-object Counter extends App {
+object Counter {
   sealed trait Command extends CborSerializable
   case object Increment extends Command
   final case class GetValue(replyTo: ActorRef[Int]) extends Command
