@@ -4,7 +4,7 @@ import akka.actor.typed.{ActorSystem, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
 
-object CounterSingletonExample extends App {
+object ClusterSingletonExample extends App {
   object Guardian {
     def apply(): Behavior[Counter.Command] = {
       Behaviors.setup { context =>
