@@ -11,7 +11,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.duration.DurationInt
-import scala.util.{Failure, Success}
+import scala.util.Random
 
 object GCounterExample extends App {
   object Guardian {
@@ -23,7 +23,7 @@ object GCounterExample extends App {
 
   // Use multiple ActorSystems in Single JVM for clustering multiple nodes easily.
   val ids = 0 to 2
-  val systems = ids.map { i =>
+  val systems = ids.map { _ =>
     ActorSystem(Guardian(), s"system",
       ConfigFactory
         .parseString(s"akka.remote.artery.canonical.port=0")
@@ -32,31 +32,26 @@ object GCounterExample extends App {
   }
 
   val route: Route = {
-    path("system" / IntNumber / "counter") { id =>
-      if (ids.contains(id)) {
-        val system = systems(id)
-        concat(
-          parameter("cache".as[Boolean].withDefault(true)) { useCache =>
-            get {
-              val response = if (useCache) {
-                system.ask(Counter.GetCachedValue)
-              } else {
-                system.ask(Counter.GetValue)
-              }
-              onComplete(response) {
-                case Success(value) => complete(value.toString)
-                case Failure(_) => complete(StatusCodes.InternalServerError)
-              }
+    path("counter") {
+      val system = Random.shuffle(systems).headOption.getOrElse(mainSystem)
+      concat(
+        parameter("cache".as[Boolean].withDefault(true)) { useCache =>
+          get {
+            val response = if (useCache) {
+              system.ask(Counter.GetCachedValue)
+            } else {
+              system.ask(Counter.GetValue)
             }
-          },
-          post {
-            system ! Counter.Increment
-            complete(StatusCodes.OK)
+            onComplete(response) { value =>
+              complete(value.toString)
+            }
           }
-        )
-      } else {
-        complete(StatusCodes.NotFound)
-      }
+        },
+        post {
+          system ! Counter.Increment
+          complete(StatusCodes.OK)
+        }
+      )
     }
   }
   Http().newServerAt("127.0.0.1", 8080).bind(route)
