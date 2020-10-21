@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import util.ActorSystemFactory
 
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
@@ -37,13 +37,8 @@ object ClusterSingletonExample extends App {
   implicit val timeout: Timeout = 3.seconds
   implicit val mainSystem: ActorSystem[Counter.Command] = ActorSystem(Guardian(), "system")
 
-  val systems = (1 to 3).map { _ =>
-    ActorSystem(Guardian(), "system",
-      ConfigFactory
-        .parseString("akka.remote.artery.canonical.port=0")
-        .withFallback(ConfigFactory.load)
-    )
-  }
+  // Use multiple ActorSystems in Single JVM for clustering multiple nodes easily.
+  val systems = (0 to 2).map { _ => ActorSystemFactory.createWithRandomPort(Guardian(), "system") }
 
   val route: Route = {
     path("counter") {

@@ -8,7 +8,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import util.ActorSystemFactory
 
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
@@ -22,14 +22,7 @@ object GCounterExample extends App {
   implicit val mainSystem: ActorSystem[Counter.Command] = ActorSystem(Guardian(), "system")
 
   // Use multiple ActorSystems in Single JVM for clustering multiple nodes easily.
-  val ids = 0 to 2
-  val systems = ids.map { _ =>
-    ActorSystem(Guardian(), s"system",
-      ConfigFactory
-        .parseString(s"akka.remote.artery.canonical.port=0")
-        .withFallback(ConfigFactory.load)
-    )
-  }
+  val systems = (0 to 2).map { _ => ActorSystemFactory.createWithRandomPort(Guardian(), "system") }
 
   val route: Route = {
     path("counter") {
