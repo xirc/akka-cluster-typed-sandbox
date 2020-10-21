@@ -1,8 +1,18 @@
 package singleton
 
+import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.{ActorSystem, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
+
+import scala.concurrent.duration.DurationInt
+import scala.util.Random
 
 object ClusterSingletonExample extends App {
   object Guardian {
@@ -16,22 +26,41 @@ object ClusterSingletonExample extends App {
             "GlobalCounter"
           )
         )
-        Behaviors.logMessages {
-          Behaviors.receiveMessage { message =>
-            proxy ! message
-            Behaviors.same
-          }
+        Behaviors.receiveMessage { message =>
+          proxy ! message
+          Behaviors.same
         }
       }
     }
   }
 
-  val system = ActorSystem(Guardian(), "system")
-  val logger = system.systemActorOf(Behaviors.logMessages(Behaviors.ignore[Int]), "logger")
+  implicit val timeout: Timeout = 3.seconds
+  implicit val mainSystem: ActorSystem[Counter.Command] = ActorSystem(Guardian(), "system")
 
-  for (_ <- 1 to 10) {
-    system ! Counter.Increment
-    system ! Counter.GetValue(logger)
-    Thread.sleep(500)
+  val systems = (1 to 3).map { _ =>
+    ActorSystem(Guardian(), "system",
+      ConfigFactory
+        .parseString("akka.remote.artery.canonical.port=0")
+        .withFallback(ConfigFactory.load)
+    )
   }
+
+  val route: Route = {
+    path("counter") {
+      val system = Random.shuffle(systems).headOption.getOrElse(mainSystem)
+      concat(
+        get {
+          val response = system.ask(Counter.GetValue)
+          onComplete(response) { value =>
+            complete(value.toString)
+          }
+        },
+        post {
+          system ! Counter.Increment
+          complete(StatusCodes.OK)
+        }
+      )
+    }
+  }
+  Http().newServerAt("127.0.0.1", 8080).bind(route)
 }
