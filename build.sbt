@@ -16,3 +16,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-cluster-sharding-typed" % Ak
 libraryDependencies += "com.typesafe.akka" %% "akka-serialization-jackson" % AkkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
+
+PB.targets in Compile := Seq(
+  scalapb.gen() -> (sourceManaged in Compile).value / "protobuf-scala"
+)
